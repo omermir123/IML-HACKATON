@@ -43,6 +43,7 @@ def preprocessing(X, y=None):
     X["אבחנה-er"] = X["אבחנה-er"].apply(
         lambda x: -1 if any(s in str(x) for s in negaives) else 1)
 
+    #managing "אבחנה-KI67 protein"
     X["אבחנה-KI67 protein"] = X["אבחנה-KI67 protein"].apply(
         lambda cell: re.search('\d+', str(cell)).group(
             0) if cell is not None and re.search('\d+',
@@ -78,15 +79,12 @@ def preprocessing(X, y=None):
         pred = k_nn_imputation(X_fit, y_fit, X_pred)
         print(f"{marker} prediction is:\n {pred}")
 
-
-
-
     return X, y
 
 
-def k_nn_imputation(X, y, feat_name):
-    k_nn = KNeighborsClassifier(n_neighbors=10)
-    X_fit = X[X[feat_name].notnull()]
+def k_nn_imputation(X_fit, y_fit, X_pred):
+    k_nn = KNeighborsClassifier(n_neighbors=10).fit(X_fit, y_fit)
+    return k_nn.predict(X_pred)
 
 def load_data(feats_file, labels_file):
     X_df = pd.read_csv(feats_file)
