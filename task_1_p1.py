@@ -4,8 +4,9 @@ import sklearn.neighbors
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 
+
 def preprocessing(X, y=None):
-    if y:
+    if y is not None:
         # Organizing labels
         unique_set = {"PUL", "HEP", "PLE", "PER", "SKI", "OTH", "LYM", "BON",
                       "ADR", "MAR", "BRA"}
@@ -14,9 +15,9 @@ def preprocessing(X, y=None):
                 lambda x: 1 if name in x else 0)
     X.drop_duplicates(
         subset=['id-hushed_internalpatientid', 'אבחנה-Diagnosis date'],
-        inplace=True) # TODO maybe add NAME FORM
-    X.drop(columns=['אבחנה-Surgery date3', 'אבחנה-Surgery name3', 'אבחנה-Surgery name1',
-                     'אבחנה-Tumor depth', "אבחנה-Diagnosis date", 'אבחנה-Tumor width', "אבחנה-Her2"], inplace=True)
+        inplace=True)  # TODO maybe add NAME FORM
+    X.drop(columns=['אבחנה-Surgery date3', 'אבחנה-Surgery name3', 'אבחנה-Tumor depth', "אבחנה-Diagnosis date",
+                    'אבחנה-Tumor width', "אבחנה-Her2"], inplace=True)
     # making  "surgery before or after-Actual activity" to dummies
     X["surgery before or after-Actual activity"] = X[
         "surgery before or after-Actual activity"].fillna("")
@@ -25,6 +26,16 @@ def preprocessing(X, y=None):
         X[name] = X["surgery before or after-Actual activity"].map(
             lambda x: 1 if name in x else 0)
     X.drop(columns=["surgery before or after-Actual activity"])
+
+    X["אבחנה-Surgery name1"] = X["אבחנה-Surgery name1"].fillna("")
+    print(X["אבחנה-Surgery name1"].unique())
+    surgery_name = ["LUMPECTOMY", "SENTINEL NODE BIOPSY", "LESION", "AXILLARY DISSECTION",
+                                     "MASTECTOMY", "QUADRANTECTOMY", "SENTINEL NODE BIOPSY", "LYMPH NODE BIOPSY",
+                                     "AXILLARY"]  # todo check the הוצ
+    for name in surgery_name:
+        X[name] = X["אבחנה-Surgery name1"].map(
+            lambda x: 1 if name in x else 0)
+    X.drop(columns=["אבחנה-Surgery name1"])
 
     # managing "אבחנה-Nodes exam"
     node_exam_avg = pd.DataFrame(X["אבחנה-Nodes exam"]).mean(skipna=True, numeric_only=True)
@@ -44,18 +55,20 @@ def preprocessing(X, y=None):
         lambda x: -1 if any(s in str(x) for s in negaives) else 1)
 
     # managing "אבחנה-T -Tumor mark (TNM)"
-    X["אבחנה-T -Tumor mark (TNM)"].fillna("XX", inplace=True)
-    X["אבחנה-T -Tumor mark (TNM)"] = X["אבחנה-T -Tumor mark (TNM)"].str[:2]
-    tumor_num_avg = pd.DataFrame(X["אבחנה-T -Tumor mark (TNM)"]).mean(skipna=True, numeric_only=True)
-    X["אבחנה-T -Tumor mark (TNM)"].replace(["T1", "T2", "T3", "T4", "Ti", "Not yet Established", "Tx", "XX"], [1, 2, 3, 4, 0, 0, tumor_num_avg, tumor_num_avg], inplace=True)
-    X["אבחנה-T -Tumor mark (TNM)"].where(not X["אבחנה-T -Tumor mark (TNM)"].str.isnumeric(), tumor_num_avg)
-    pd.get_dummies(X, columns=["אבחנה-Basic stage", " Hospital", "User Name"])
+    # X["אבחנה-T -Tumor mark (TNM)"].fillna("XX", inplace=True)
+    # X["אבחנה-T -Tumor mark (TNM)"] = X["אבחנה-T -Tumor mark (TNM)"].str[:2]
+    # tumor_num_avg = pd.DataFrame(X["אבחנה-T -Tumor mark (TNM)"]).mean(skipna=True, numeric_only=True)
+    # X["אבחנה-T -Tumor mark (TNM)"].replace(["T1", "T2", "T3", "T4", "Ti", "Not yet Established", "Tx", "XX"], [1, 2, 3, 4, 0, 0, tumor_num_avg, tumor_num_avg], inplace=True)
+    # X["אבחנה-T -Tumor mark (TNM)"].where(not X["אבחנה-T -Tumor mark (TNM)"].str.isnumeric(), tumor_num_avg)
+    pd.get_dummies(X, columns=["אבחנה-Basic stage", " Hospital", "User Name", "אבחנה-Side"])
 
     return X, y
+
 
 def k_nn_imputation(X, y, feat_name):
     k_nn = KNeighborsClassifier(n_neighbors=10)
     X_fit = X[X[feat_name].notnull()]
+
 
 def load_data(feats_file, labels_file):
     X_df = pd.read_csv(feats_file)
@@ -66,7 +79,8 @@ def load_data(feats_file, labels_file):
                                                       test_size=0.1,
                                                       random_state=21)
     X_train, y_train = preprocessing(X_train, y_train)
-    return X_train, y_train, X_dev, y_dev, X_test ,y_test
+    return X_train, y_train, X_dev, y_dev, X_test, y_test
+
 
 if __name__ == '__main__':
     load_data("train.feats.csv", "train.labels.0.csv")
