@@ -1,22 +1,9 @@
 import pandas as pd
 import numpy as np
 import sklearn.neighbors
-from sklearn.decomposition import PCA
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
-
-
-
-def pca(to_pca,name,n):
-    pca = PCA(n_components=n, svd_solver='full')
-    pca.fit(to_pca)
-    print(pca.explained_variance_ratio_)
-    principalComponents = pca.fit_transform(to_pca)
-    return to_df(principalComponents,name,n)
-
-def to_df(X,name,num_of_pca):
-    principalDf = pd.DataFrame(data=X, columns=["pca "+name+str(i) for i in range((num_of_pca))])
-    return principalDf
+import re
 
 def preprocessing(X, y=None):
     if y is not None:
@@ -28,9 +15,9 @@ def preprocessing(X, y=None):
                 lambda x: 1 if name in x else 0)
     X.drop_duplicates(
         subset=['id-hushed_internalpatientid', 'אבחנה-Diagnosis date'],
-        inplace=True)  # TODO maybe add NAME FORM
-    X.drop(columns=['אבחנה-Surgery date3', 'אבחנה-Surgery name3', 'אבחנה-Tumor depth', "אבחנה-Diagnosis date",
-                    'אבחנה-Tumor width', "אבחנה-Her2"], inplace=True)
+        inplace=True) # TODO maybe add NAME FORM
+    X.drop(columns=['אבחנה-Surgery date3', 'אבחנה-Surgery name3', 'אבחנה-Surgery name1',
+                     'אבחנה-Tumor depth', "אבחנה-Diagnosis date", 'אבחנה-Tumor width', "אבחנה-Her2", "User Name"], inplace=True)
     # making  "surgery before or after-Actual activity" to dummies
     X["surgery before or after-Actual activity"] = X[
         "surgery before or after-Actual activity"].fillna("")
@@ -39,43 +26,60 @@ def preprocessing(X, y=None):
         X[name] = X["surgery before or after-Actual activity"].map(
             lambda x: 1 if name in x else 0)
     X.drop(columns=["surgery before or after-Actual activity"])
-    # to_pca = X[[name for  name in surgery_before_diagnosis_name]]
-    # pca(to_pca)
-    X["אבחנה-Surgery name1"] = X["אבחנה-Surgery name1"].fillna("")
-    # print(X["אבחנה-Surgery name1"].unique())
-    surgery_name = ["LUMPECTOMY", "SENTINEL NODE BIOPSY", "LESION", "AXILLARY DISSECTION",
-                                     "MASTECTOMY", "QUADRANTECTOMY", "SENTINEL NODE BIOPSY", "LYMPH NODE BIOPSY",
-                                     "AXILLARY"]  # todo check the הוצ
-    for name in surgery_name:
-        X[name] = X["אבחנה-Surgery name1"].map(
-            lambda x: 1 if name in x else 0)
-    X.drop(columns=["אבחנה-Surgery name1"])
-    pca_cols = X[[name for name in surgery_name]]
-    cols = pca(pca_cols,"Surgery name",4)
-    print(cols.describe())
     # managing "אבחנה-Nodes exam"
     node_exam_avg = pd.DataFrame(X["אבחנה-Nodes exam"]).mean(skipna=True, numeric_only=True)
     X["אבחנה-Nodes exam"].where(X["אבחנה-Nodes exam"].notnull(), node_exam_avg)
+
     # managing "אבחנה-Histopatological degree"
     X["אבחנה-Histopatological degree"] = X["אבחנה-Histopatological degree"].str[:2]
     X["אבחנה-Histopatological degree"].replace(["G1", "G2", "G3", "G4", "GX", "Nu"], [1, 2, 3, 4, 0, 0], inplace=True)
 
     # managing "User Name"
-    X["User Name"] = X["User Name"].str.split('_')
-    X["User Name"] = X["User Name"].str[0]
-
+    # X["User Name"] = X["User Name"].str.split('_')
+    # X["User Name"] = X["User Name"].str[0]
+    X = pd.get_dummies(X, columns=["אבחנה-Basic stage", " Hospital"])
     # managing "אבחנה-er"
     negaives = ["neg", "NEG", "-", "שלילי"]
     X["אבחנה-er"] = X["אבחנה-er"].apply(
         lambda x: -1 if any(s in str(x) for s in negaives) else 1)
 
+    X["אבחנה-KI67 protein"] = X["אבחנה-KI67 protein"].apply(
+        lambda cell: re.search('\d+', str(cell)).group(
+            0) if cell is not None and re.search('\d+',
+                                                 str(cell)) is not None else '50')
+    X["אבחנה-KI67 protein"] = X["אבחנה-KI67 protein"].astype(int)
+    X["אבחנה-KI67 protein"] = X["אבחנה-KI67 protein"].apply(
+        lambda x: 1 if x > 20 else 0)
+
     # managing "אבחנה-T -Tumor mark (TNM)"
-    # X["אבחנה-T -Tumor mark (TNM)"].fillna("XX", inplace=True)
-    # X["אבחנה-T -Tumor mark (TNM)"] = X["אבחנה-T -Tumor mark (TNM)"].str[:2]
-    # tumor_num_avg = pd.DataFrame(X["אבחנה-T -Tumor mark (TNM)"]).mean(skipna=True, numeric_only=True)
-    # X["אבחנה-T -Tumor mark (TNM)"].replace(["T1", "T2", "T3", "T4", "Ti", "Not yet Established", "Tx", "XX"], [1, 2, 3, 4, 0, 0, tumor_num_avg, tumor_num_avg], inplace=True)
+    X["אבחנה-T -Tumor mark (TNM)"].fillna("XX", inplace=True)
+    X["אבחנה-T -Tumor mark (TNM)"] = X["אבחנה-T -Tumor mark (TNM)"].str[:2]
+    tumor_num_avg = pd.DataFrame(X["אבחנה-T -Tumor mark (TNM)"]).mean(skipna=True, numeric_only=True)
+    X["אבחנה-T -Tumor mark (TNM)"].replace(["T1", "T2", "T3", "T4", "Ti", "Not yet Established"], [1, 2, 3, 4, 0, 0], inplace=True)
     # X["אבחנה-T -Tumor mark (TNM)"].where(not X["אבחנה-T -Tumor mark (TNM)"].str.isnumeric(), tumor_num_avg)
-    pd.get_dummies(X, columns=["אבחנה-Basic stage", " Hospital", "User Name", "אבחנה-Side"])
+    # managing "אבחנה-M -metastases mark (TNM)"
+    X["אבחנה-M -metastases mark (TNM)"] = X[
+                                               "אבחנה-M -metastases mark (TNM)"].str[
+                                           :2]
+    X.loc[X[
+               'אבחנה-M -metastases mark (TNM)'] != 'M1', 'אבחנה-M -metastases mark (TNM)'] = 0
+    X.loc[X[
+               'אבחנה-M -metastases mark (TNM)'] == 'M1', 'אבחנה-M -metastases mark (TNM)'] = 1
+    #####
+    X.drop(columns=[" Form Name", "אבחנה-Histological diagnosis"], inplace=True)
+    #####
+    X_fit = X[X["אבחנה-T -Tumor mark (TNM)"].notnull()]
+    y_fit = X_fit["אבחנה-T -Tumor mark (TNM)"]
+    X_fit.drop(columns=["אבחנה-T -Tumor mark (TNM)"], inplace=True)
+    markers = ["Tx", "MF", "XX"]
+    for marker in markers:
+        X_pred = X[X["אבחנה-T -Tumor mark (TNM)"] == marker]
+        X_pred.drop(columns=["אבחנה-T -Tumor mark (TNM)"], inplace=True)
+        pred = k_nn_imputation(X_fit, y_fit, X_pred)
+        print(f"{marker} prediction is:\n {pred}")
+
+
+
 
     return X, y
 
@@ -83,7 +87,6 @@ def preprocessing(X, y=None):
 def k_nn_imputation(X, y, feat_name):
     k_nn = KNeighborsClassifier(n_neighbors=10)
     X_fit = X[X[feat_name].notnull()]
-
 
 def load_data(feats_file, labels_file):
     X_df = pd.read_csv(feats_file)
@@ -94,8 +97,7 @@ def load_data(feats_file, labels_file):
                                                       test_size=0.1,
                                                       random_state=21)
     X_train, y_train = preprocessing(X_train, y_train)
-    return X_train, y_train, X_dev, y_dev, X_test, y_test
-
+    return X_train, y_train, X_dev, y_dev, X_test ,y_test
 
 if __name__ == '__main__':
     load_data("train.feats.csv", "train.labels.0.csv")
