@@ -1,9 +1,22 @@
 import pandas as pd
 import numpy as np
 import sklearn.neighbors
+from sklearn.decomposition import PCA
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 
+
+
+def pca(to_pca,name,n):
+    pca = PCA(n_components=n, svd_solver='full')
+    pca.fit(to_pca)
+    print(pca.explained_variance_ratio_)
+    principalComponents = pca.fit_transform(to_pca)
+    return to_df(principalComponents,name,n)
+
+def to_df(X,name,num_of_pca):
+    principalDf = pd.DataFrame(data=X, columns=["pca "+name+str(i) for i in range((num_of_pca))])
+    return principalDf
 
 def preprocessing(X, y=None):
     if y is not None:
@@ -26,9 +39,10 @@ def preprocessing(X, y=None):
         X[name] = X["surgery before or after-Actual activity"].map(
             lambda x: 1 if name in x else 0)
     X.drop(columns=["surgery before or after-Actual activity"])
-
+    # to_pca = X[[name for  name in surgery_before_diagnosis_name]]
+    # pca(to_pca)
     X["אבחנה-Surgery name1"] = X["אבחנה-Surgery name1"].fillna("")
-    print(X["אבחנה-Surgery name1"].unique())
+    # print(X["אבחנה-Surgery name1"].unique())
     surgery_name = ["LUMPECTOMY", "SENTINEL NODE BIOPSY", "LESION", "AXILLARY DISSECTION",
                                      "MASTECTOMY", "QUADRANTECTOMY", "SENTINEL NODE BIOPSY", "LYMPH NODE BIOPSY",
                                      "AXILLARY"]  # todo check the הוצ
@@ -36,11 +50,12 @@ def preprocessing(X, y=None):
         X[name] = X["אבחנה-Surgery name1"].map(
             lambda x: 1 if name in x else 0)
     X.drop(columns=["אבחנה-Surgery name1"])
-
+    pca_cols = X[[name for name in surgery_name]]
+    cols = pca(pca_cols,"Surgery name",4)
+    print(cols.describe())
     # managing "אבחנה-Nodes exam"
     node_exam_avg = pd.DataFrame(X["אבחנה-Nodes exam"]).mean(skipna=True, numeric_only=True)
     X["אבחנה-Nodes exam"].where(X["אבחנה-Nodes exam"].notnull(), node_exam_avg)
-
     # managing "אבחנה-Histopatological degree"
     X["אבחנה-Histopatological degree"] = X["אבחנה-Histopatological degree"].str[:2]
     X["אבחנה-Histopatological degree"].replace(["G1", "G2", "G3", "G4", "GX", "Nu"], [1, 2, 3, 4, 0, 0], inplace=True)
